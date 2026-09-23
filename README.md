@@ -28,27 +28,31 @@ Work assigned by phone returns to your original Codex task. Open that task anyti
 
 ## Get started
 
-### Another task on your configured Mac
+### 1. Prepare your devices
 
-Download the [skill ZIP](dist/codex-call-the-boss.skill.zip), attach it to the target Codex task, and say:
+You need a Mac with Phone.app, the Codex desktop app signed in, and an iPhone with call relay enabled. You also need a receiving number different from the outgoing phone line.
 
-> Read the attached SKILL.md. Reuse this Mac's existing phone configuration and enable completion calls and phone commands only for this task. Check readiness first; guide me through anything missing. Do not change other tasks' subscriptions.
+Setup requires Python 3.11+, BlackHole 2ch/16ch, and Accessibility permissions. Codex checks these and guides you through anything missing. The receiving number must appear in Phone.app's recents with an available Call action. Keep your Mac and Codex running and awake during use.
 
-If the skill is already installed, invoke `$codex-call-the-boss` with that request. Only tasks you explicitly enable will call you. Finish any calls and wait for pending work before updating or reconfiguring.
+### 2. Download and set up with Codex
 
-### A new Mac
+Download the [skill ZIP](dist/codex-call-the-boss.skill.zip), extract it, give Codex access to the extracted `codex-call-the-boss` folder, and send:
 
-You need Phone.app, a signed-in Codex desktop app, Python 3.11+, iPhone call relay, a reachable receiving number different from the outgoing line, BlackHole 2ch/16ch, and the necessary Accessibility permissions. The target number must have an identifiable Call action in Phone.app's recents. The Mac and Codex must remain awake and running.
+> This is my first time using Call the Boss. Read SKILL.md in this folder, check my devices and environment, and guide me through installation, iPhone call relay, the receiving number, audio, and permissions. Do not assume I have any phone configuration. Ask before installing components, changing permissions, or enabling paid services. Once configured, enable phone reports only for the current task. Wait for my confirmation before placing a test call.
 
-Extract the ZIP and ask Codex to read its `SKILL.md` and guide setup. Codex asks for your approval before installing components, changing permissions, or enabling a paid voice service.
+Follow Codex's setup prompts; you do not need to edit parameters in the code yourself. See the [setup guide](skills/codex-call-the-boss/references/setup.md) for details.
 
-For a read-only inventory, from the extracted `codex-call-the-boss` folder:
+### 3. Make a test call
 
-```bash
-python3 scripts/call_the_boss.py plan
-```
+Once setup checks pass, ask Codex to call you once for a test. Answer and say hello. Check that you can hear the report, ask questions, and give a simple task. Return to the task window to check that your instruction arrived and was executed.
 
-Ask Codex to check the configuration and enable calls for the current task. Start with a test call to check that you can hear the report and send an instruction. See the [setup guide](skills/codex-call-the-boss/references/setup.md) for details.
+### Use it in another task later
+
+After the initial installation, send this in each Codex task where you want phone reports:
+
+> Use $codex-call-the-boss. Check the saved configuration and enable completion calls and phone commands only for this task. Guide me through anything missing without changing other tasks' settings.
+
+Enable each task separately. Finish calls and wait for pending work before updating or reconfiguring.
 
 ## Voice and costs
 
