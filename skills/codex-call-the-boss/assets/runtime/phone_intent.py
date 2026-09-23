@@ -11,6 +11,7 @@ import errno
 import json
 import re
 import time
+from pathlib import Path
 from codex_rpc import CodexAppServer, CodexRpcError, readiness_error_code
 
 
@@ -209,6 +210,29 @@ class PhoneIntentRouter:
         overrides['mcp_servers'] = {name: {'enabled': False} for name in servers}
         if timing is not None:
             timing.target['excluded_mcp_servers'] = len(servers)
+            timing.mark('skills_inventory')
+        inventory = await self.server.request('skills/list', {
+            'cwds': [self.cwd], 'forceReload': False,
+        }, timeout=3)
+        rows = inventory.get('data') if isinstance(inventory, dict) else None
+        if (not isinstance(rows, list) or len(rows) != 1
+                or not isinstance(rows[0], dict) or rows[0].get('cwd') != self.cwd
+                or not isinstance(rows[0].get('skills'), list)
+                or len(rows[0]['skills']) > 1024 or rows[0].get('errors')):
+            raise PhoneIntentError('classifier_skills_unavailable')
+        paths = []
+        for skill in rows[0]['skills']:
+            path = skill.get('path') if isinstance(skill, dict) else None
+            if (not isinstance(path, str) or not path or '\x00' in path
+                    or not Path(path).is_absolute() or path in paths):
+                raise PhoneIntentError('classifier_skills_unavailable')
+            paths.append(path)
+        # A one-token budget truncates descriptions only AFTER discovery and
+        # skill-associated preparation. Disable the discovered skills in this
+        # disposable classification context, never on disk or in live Q&A.
+        overrides['skills.config'] = [{'path': path, 'enabled': False} for path in paths]
+        if timing is not None:
+            timing.target['excluded_skills'] = len(paths)
             timing.mark('context_start')
         result = await self.server.request('thread/start', {
             'cwd': self.cwd, 'ephemeral': True, 'approvalPolicy': 'never',

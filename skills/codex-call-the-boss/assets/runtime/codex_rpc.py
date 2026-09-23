@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -117,6 +118,28 @@ def _classifier_catalog_candidate(cwd, *, now=None):
         return None, 'unavailable_cache'
 
 
+def _catalog_version_matches(cli_output, cache_version):
+    """Codex's catalog uses the release core, even in desktop alpha builds.
+
+    Accept an exact full version or its exact major.minor.patch cache key.
+    Never treat a different patch/minor or two prerelease versions as equal.
+    Unknown CLI output retains normal discovery rather than guessing.
+    """
+    match = re.fullmatch(
+        r'codex-cli ((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)'
+        r'(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?'
+        r'(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)', cli_output)
+    if not match:
+        return False
+    prerelease = match.group(2)
+    if prerelease and any(part.isdigit() and len(part) > 1 and part[0] == '0'
+                          for part in prerelease.split('.')):
+        return False
+    full = match.group(1)
+    core = full.split('+', 1)[0].split('-', 1)[0]
+    return cache_version in (full, core)
+
+
 class CodexAppServer:
     """Small JSONL client for the local `codex app-server` process."""
 
@@ -151,7 +174,8 @@ class CodexAppServer:
                 process = await asyncio.create_subprocess_exec('codex', '--version',
                     stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
                 output, _ = await process.communicate()
-            if process.returncode != 0 or output.decode().strip() != 'codex-cli ' + version:
+            cli_version = output.decode().strip()
+            if process.returncode != 0 or not _catalog_version_matches(cli_version, version):
                 self.classifier_catalog_diagnostics['reason'] = 'version_mismatch'
                 return []
         except (OSError, ValueError, TimeoutError):
@@ -162,7 +186,8 @@ class CodexAppServer:
                 process.kill()
                 await process.wait()
         self.classifier_catalog_diagnostics = {'mode': 'recent_codex_cache', 'age_seconds': age,
-                                               'client_version': version}
+                                               'client_version': version,
+                                               'cli_version': cli_version.removeprefix('codex-cli ')}
         return ['-c', 'model_catalog_json=' + json.dumps(str(path))]
 
     @property

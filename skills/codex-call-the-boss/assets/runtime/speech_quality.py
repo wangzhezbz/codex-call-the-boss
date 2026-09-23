@@ -12,6 +12,8 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 ALIGNMENT_REVISION = 'orthography-status-opening-v2'
+# Additive exact-equivalence proof; existing accepted cache proofs remain valid.
+NUMERIC_ORTHOGRAPHY_REVISION = 'exact-cardinal-decimal-tone-v2'
 
 STATE_PHRASES = ('已开始', '已经开始', '已完成', '已经完成', '已经修复', '已修复',
                  '成功', '通过', '送达', '确认', '开始', '完成', '修复')
@@ -28,6 +30,47 @@ def critical_content(text: str) -> tuple:
     numbers = re.findall(r'\d+(?:\.\d+)?', text)
     states = re.findall('|'.join(STATE_PHRASES), compact)
     return tuple(negative), tuple(numbers), tuple(states)
+
+
+def _numeric_orthography(text: str) -> str | None:
+    """Render small unsigned Arabic cardinals as Chinese for exact QA only.
+
+    No fuzzy number parsing, rounding, unit conversion or caller-text rewrite.
+    Leading zero IDs, grouped numbers, versions and large numbers are outside
+    this proof. Keep signs, decimal zeros and percent symbols significant.
+    """
+    if re.search(r'\d[,，]\d|\d+\.\d+\.', text):
+        return None
+    digits = '零一二三四五六七八九'
+
+    def spell(match):
+        literal = match.group()
+        integer, dot, fraction = literal.partition('.')
+        if len(integer) > 4 or len(integer) > 1 and integer[0] == '0':
+            return literal
+        value = int(integer)
+        if value == 0:
+            result = '零'
+        else:
+            result, pending_zero = '', False
+            for power, unit in ((3, '千'), (2, '百'), (1, '十'), (0, '')):
+                digit = value // (10 ** power) % 10
+                if digit:
+                    if pending_zero:
+                        result += '零'
+                    result += digits[digit] + unit
+                    pending_zero = False
+                elif result:
+                    pending_zero = True
+            if result.startswith('一十'):
+                result = result[1:]
+        return result + ('点' + ''.join(digits[int(c)] for c in fraction) if dot else '')
+
+    expanded = re.sub(r'(?<![A-Za-z0-9_.])[0-9]+(?:\.[0-9]+)?(?![A-Za-z0-9_.])',
+                      spell, text)
+    # Strip only ordinary speech punctuation, not arbitrary mathematical,
+    # currency or full-width signs that might change a number's meaning.
+    return re.sub(r'''[\s,，。;；:：、!！?？“”"'‘’]''', '', expanded).casefold()
 
 
 def _phonetic_states(tokens, phrases):
@@ -47,6 +90,30 @@ def _phonetic_states(tokens, phrases):
         else:
             offset += 1
     return tuple(matches)
+
+
+def _numeric_tone_equivalence(left: str, right: str) -> bool:
+    """Combine number spelling with full tone identity, not fuzzy similarity.
+
+    Preserve the position of every numeral, sign and non-Chinese character.
+    Equal length also forbids a missing/extra syllable from passing this path.
+    Negation, states and the opening are checked by the caller before this.
+    """
+    protected = lambda text: tuple((i, c) for i, c in enumerate(text)
+        if not '\u3400' <= c <= '\u9fff' or c in '零〇一二两三四五六七八九十百千万亿点负正')
+    if len(left) != len(right) or protected(left) != protected(right):
+        return False
+    probe = subprocess.run([
+        '/usr/bin/swift', str(Path(__file__).with_name('speech_pronunciation.swift'))],
+        input=json.dumps([left, right], ensure_ascii=False), text=True,
+        capture_output=True, timeout=2, check=True)
+    rows = json.loads(probe.stdout)
+    if (not isinstance(rows, list) or len(rows) != 2
+            or any(not isinstance(row, list) or not row
+                   or any(not isinstance(token, str) or not token for token in row)
+                   for row in rows)):
+        raise ValueError('Invalid numeric pronunciation result')
+    return rows[0] == rows[1]
 
 
 def _simplified_pair(expected, actual):
@@ -83,6 +150,25 @@ def speech_alignment(expected: str, actual: str) -> dict:
     if protect_opening:
         result['opening_address_passed'] = same_opening
     expected_critical, actual_critical = critical_content(expected), critical_content(actual)
+    if (expected_critical[1] != actual_critical[1]
+            and expected_critical[0] == actual_critical[0]
+            and expected_critical[2] == actual_critical[2] and same_opening):
+        numeric_left, numeric_right = _numeric_orthography(expected), _numeric_orthography(actual)
+        # Only a complete exact match can reconcile number spellings. It cannot
+        # lower character/phonetic gates for another word, clause or value.
+        if numeric_left and numeric_left == numeric_right:
+            result.update(passed=True, method='numeric_orthography_exact',
+                          numeric_orthography_revision=NUMERIC_ORTHOGRAPHY_REVISION)
+            return result
+        if numeric_left and numeric_right:
+            try:
+                if _numeric_tone_equivalence(numeric_left, numeric_right):
+                    result.update(passed=True, method='numeric_orthography+exact_tone_syllables',
+                                  pronunciation_similarity=1.0, syllable_length_ratio=1.0,
+                                  numeric_orthography_revision=NUMERIC_ORTHOGRAPHY_REVISION)
+                    return result
+            except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+                result['numeric_pronunciation_check_unavailable'] = True
     # Neither script conversion nor phonetic similarity can change numbers.
     # Clearly changed simplified negation also fails without another process.
     if (expected_critical[1] != actual_critical[1]

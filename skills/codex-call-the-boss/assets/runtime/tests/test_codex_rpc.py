@@ -9,7 +9,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
-from codex_rpc import CodexAppServer, CodexRpcError, _classifier_catalog_candidate, readiness_error_code, phone_control_system_proxy
+from codex_rpc import CodexAppServer, CodexRpcError, _classifier_catalog_candidate, _catalog_version_matches, readiness_error_code, phone_control_system_proxy
 
 
 class PhoneControlRouteTests(unittest.TestCase):
@@ -44,6 +44,25 @@ class ReadinessErrorTests(unittest.TestCase):
 
 
 class CatalogCandidateTests(unittest.TestCase):
+    def test_desktop_prerelease_matches_only_its_exact_release_cache_key(self):
+        for binary, cached, expected in (
+            ('0.155.0-alpha.9.2', '0.155.0', True),
+            ('0.155.0-alpha.9.2', '0.155.0-alpha.9.2', True),
+            ('0.155.0-alpha.9.2', '0.155.0-alpha.9.1', False),
+            ('0.155.0-alpha.9.2', '0.155.1', False),
+            ('0.155.0-alpha.9.2', '0.154.0', False),
+            ('0.155.0', '0.155.0-alpha.9.2', False),
+            ('0.155.0+build.1', '0.155.0', True),
+            ('0.155.0-alpha.09', '0.155.0', False),
+            ('0.155.0-', '0.155.0', False),
+            ('0.155.0alpha.9', '0.155.0', False),
+            ('00.155.0', '00.155.0', False),
+            ('0.155.0 extra', '0.155.0', False),
+        ):
+            with self.subTest(binary=binary, cached=cached):
+                self.assertEqual(_catalog_version_matches('codex-cli ' + binary, cached), expected)
+        self.assertFalse(_catalog_version_matches('unknown', 'unknown'))
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -126,6 +145,7 @@ class RpcFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_catalog_requires_matching_running_binary_version(self):
         for output, expected in ((b'codex-cli 0.153.4\n', True),
+                                 (b'codex-cli 0.153.4-alpha.9.2\n', True),
                                  (b'codex-cli 0.154.0\n', False), (b'unknown\n', False)):
             server = CodexAppServer(capability_profile='classifier')
             process = SimpleNamespace(returncode=0, communicate=AsyncMock(return_value=(output, b'')))

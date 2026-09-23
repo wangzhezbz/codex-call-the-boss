@@ -34,6 +34,8 @@ def build():
         'private_state_included': False,
         'files': {name: hashlib.sha256(value).hexdigest() for name, value in sorted(data.items())}}
     data['package-manifest.json'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode()
+    # Keep source downloads and the ZIP on the same release manifest.
+    (SKILL / 'package-manifest.json').write_bytes(data['package-manifest.json'])
     output = ROOT / 'dist/codex-call-the-boss.skill.zip'
     output.parent.mkdir(exist_ok=True)
     with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as archive:

@@ -14,9 +14,9 @@ from phone_stop_mailbox import MailboxError, Scope, _number, _optional, _digest
 
 
 class StopBackend:
-    def __init__(self, mailbox, *, rollout_path, hook_config, confirmation_seconds=6):
+    def __init__(self, mailbox, *, rollout_path, hook_config, confirmation_seconds=30):
         if (not callable(rollout_path) or not Path(hook_config).is_absolute()
-                or not _number(confirmation_seconds) or not 0 < confirmation_seconds <= 6):
+                or not _number(confirmation_seconds) or not 0 < confirmation_seconds <= 30):
             raise ValueError('invalid_stop_backend')
         self.mailbox = mailbox
         self.rollout_path = rollout_path
@@ -131,6 +131,10 @@ class StopBackend:
         deadline = loop.time() + self.confirmation_seconds
         best = {'status': 'pending_stop_delivery', 'delivered_to_model': False,
                 'execution_confirmed': False, 'command_id': offered['command_id']}
+        trace = {'confirmation_limit_ms': round(self.confirmation_seconds * 1000),
+                 'observations': 0, 'delivery_observed_ms': None,
+                 'processing_observed_ms': None}
+        began = deadline - self.confirmation_seconds
         while loop.time() < deadline:
             path = self.rollout_path(dispatch.scope.source_thread_id)
             if path is not None:
@@ -140,10 +144,14 @@ class StopBackend:
                     async with asyncio.timeout(max(.001, deadline - loop.time())):
                         observed = await asyncio.to_thread(dispatch.inspect_delivery, job,
                             offered['command_id'], rollout_path=path, hook_config=self.hook_config)
+                    trace['observations'] += 1
                     best.pop('verification_warning', None)
                     if observed.get('delivered_to_model'):
+                        if trace['delivery_observed_ms'] is None:
+                            trace['delivery_observed_ms'] = round((loop.time() - began) * 1000)
                         best.update(observed)
                     if observed.get('execution_confirmed'):
+                        trace['processing_observed_ms'] = round((loop.time() - began) * 1000)
                         break
                 except MailboxError as exc:
                     if str(exc) == 'transaction_busy':
@@ -169,6 +177,8 @@ class StopBackend:
         if not best['execution_confirmed'] and 'verification_warning' not in best:
             best['verification_warning'] = ('processing_not_observed_before_deadline'
                 if best['delivered_to_model'] else 'input_not_observed_before_deadline')
+        trace['elapsed_ms'] = round((loop.time() - began) * 1000)
+        best['confirmation_timing'] = trace
         row = {'command_id': offered['command_id'], 'prompt': classified_text,
                'verification': dict(best)}
         job.setdefault('stop_delivery_results', []).append(row)

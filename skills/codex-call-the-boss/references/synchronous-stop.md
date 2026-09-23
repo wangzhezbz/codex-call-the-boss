@@ -80,7 +80,9 @@ Preserve ordinary permissions and cost boundaries. Do not infer task success
 from classification, the hook output, delivery, or source processing.
 
 The worker distinguishes pending, typed input received, and new processing.
-Only the last can play the complete selected started receipt. Uncertainty uses
+Only the last can play the complete selected started receipt. Confirmation has a
+thirty-second maximum and returns immediately when exact new processing is
+observed. It never resends the command or treats delivery as execution. Uncertainty uses
 the existing unconfirmed notice and never retries. Dialogue, offers, delivery
 results and cancellations are retained privately under the exact source. Keep
 prepared output distinct from audio actually played and from handset hearing.

@@ -1996,6 +1996,7 @@ class IPhoneVoiceBridge:
         self._phone_input_signal = InputSignalStats()
         self._caller_acoustic_sequence = 0
         self._consumed_acoustic_sequence = -1
+        self._untranscribed_notice_sequence = -1
         self._initial_caller_bursts: list[dict[str, Any]] = []
         self._delayed_opening_end_ms: float | None = None
         self._rejected_input_starts: set[float] = set()
@@ -2497,7 +2498,58 @@ class IPhoneVoiceBridge:
                     if status.get('pid') == os.getpid() and status.get('command_transport_ok') is False:
                         return 'Codex task command transport disconnected'
             await self._check_stalled_voice()
+            self._check_untranscribed_input()
             await asyncio.sleep(.25)
+
+    def _check_untranscribed_input(self):
+        """Bound silence when physical post-report input gets no ASR at all.
+
+        Energy is not text or action authorization. Reuse one prepared repeat
+        request, never a generated answer, and expire only this acoustic credit.
+        Existing partial-transcript and query timers retain their own bounds.
+        """
+        sequence = self._caller_acoustic_sequence
+        ended, started = self._last_local_caller_end_at, self._current_local_caller_start_at
+        if (not self.accept_phone_audio or not self._phone_input_observed
+                or self.disconnected or self._closing_input or self._call_failure
+                or not self._announcement_delivered or self._pending_input_id
+                or self._local_caller_active or self._remote_speech_active
+                or sequence <= 0 or sequence == self._opening_acoustic_sequence
+                or sequence <= self._consumed_acoustic_sequence
+                or sequence == self._untranscribed_notice_sequence
+                or ended is None or started is None or ended - started < .3
+                or time.monotonic() - ended < 8
+                or self.audio is None or not hasattr(self.audio, 'playback_snapshot')):
+            return
+        rows = self.audio.playback_snapshot()
+        report = next((r for r in rows if r['id'] == f'announcement-{self.pending.job_id}'), None)
+        if (not report or report['status'] != 'output_complete'
+                or report.get('output_finished_at') is None
+                or started < report['output_finished_at']
+                or any(r['status'] in {'queued', 'playing'} for r in rows)):
+            return
+        self._untranscribed_notice_sequence = sequence
+        self._consumed_acoustic_sequence = sequence
+        generation, latest = self._speech_generation, self._latest_user_turn_id
+        self.pending.job.setdefault('phone_untranscribed_input_timeouts', []).append({
+            'acoustic_sequence': sequence, 'silence_ms': round((time.monotonic()-ended)*1000),
+            'reason': 'no_transcript_after_physical_input', 'text_inferred': False})
+
+        def current():
+            return (sequence == self._caller_acoustic_sequence
+                    and latest == self._latest_user_turn_id and not self._pending_input_id
+                    and generation == self._speech_generation and not self.disconnected
+                    and not self._closing_input and not self._call_failure
+                    and not self._local_caller_active and not self._remote_speech_active
+                    and not any(r['status'] in {'queued', 'playing'}
+                                for r in self.audio.playback_snapshot()))
+
+        async def notify():
+            await asyncio.wait_for(self._render_local_speech(INPUT_INCOMPLETE, generation,
+                kind='input_timeout', user_turn_id=f'acoustic-{sequence}', ready_check=current), 3)
+        task = asyncio.create_task(notify())
+        self._local_speech_tasks.add(task)
+        task.add_done_callback(self._local_speech_done)
 
     async def _check_stalled_voice(self):
         identity = self._realtime_streaming_turn_id
@@ -2997,6 +3049,15 @@ class IPhoneVoiceBridge:
 
     def _on_realtime_event(self, event: dict[str, Any]) -> None:
         event_type = str(event.get("type") or "")
+        # Fixed-key numeric evidence only; no raw audio, caller text or IDs.
+        input_event = (event_type in {'input_transcript.added',
+            'conversation.item.input_audio_transcription.completed',
+            'input_audio_buffer.speech_started', 'input_audio_buffer.speech_stopped'}
+            or event_type in {'turn.created', 'turn.done'}
+            and (event.get('turn') or {}).get('role') == 'user')
+        if input_event:
+            counts = self.pending.job.setdefault('phone_realtime_input_events', {})
+            counts[event_type] = counts.get(event_type, 0) + 1
         if self._call_failure:
             return
         if event_type == 'output_transcript.added':
@@ -4326,7 +4387,7 @@ class IPhoneVoiceBridge:
                 self._query_answered_ids.add(user_turn_id)
                 self._finish_query_wait(user_turn_id)
             self._record_audio_queue_latency(kind, user_turn_id=user_turn_id, output_id=notice_id)
-            if (kind == 'answer' and self.daemon.config.get('phone_voice_renderer') == DOUBAO_RENDERER) or kind in {'command_receipt','command_error','intent_clarification','query_wait','query_timeout','service_failure','native_voice_failure'} or (
+            if (kind == 'answer' and self.daemon.config.get('phone_voice_renderer') == DOUBAO_RENDERER) or kind in {'command_receipt','command_error','intent_clarification','input_timeout','query_wait','query_timeout','service_failure','native_voice_failure'} or (
                     kind == 'realtime_audio_fallback' and self.daemon.config.get('phone_voice_renderer') == 'realtime-unified'):
                 # The transcript explicitly records queued/partial/cancelled
                 # output. Only the device callback can complete this receipt.

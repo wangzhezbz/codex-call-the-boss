@@ -34,6 +34,9 @@ class IntentServer:
         self.requests.append((method, params))
         if method == 'config/read':
             return {'config': {'mcp_servers': {'slow.example': {'enabled': True}}}}
+        if method == 'skills/list':
+            return {'data': [{'cwd': params['cwds'][0], 'errors': [], 'skills': [
+                {'path': '/synthetic/skill/SKILL.md'}]}]}
         if method == 'thread/start':
             self.contexts += 1
             self.thread = 'intent-context-' + str(self.contexts)
@@ -74,6 +77,64 @@ async def missing_id_probe():
 
 
 class IntentLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_skill_exclusion_is_read_only_exact_scope_and_once_per_context(self):
+        server, trace = IntentServer(), {}
+        router = PhoneIntentRouter(server, '/source/project')
+        for text in ('你好', '您好'):
+            await router.classify(text, [], trace=trace)
+        inventory = [p for m, p in server.requests if m == 'skills/list']
+        self.assertEqual(inventory, [{'cwds': ['/source/project'], 'forceReload': False}])
+        context = next(p for m, p in server.requests if m == 'thread/start')
+        self.assertEqual(context['config']['skills.config'], [
+            {'path': '/synthetic/skill/SKILL.md', 'enabled': False}])
+        self.assertEqual(trace['excluded_skills'], 1)
+        self.assertEqual(context['sandbox'], 'read-only')
+        self.assertNotIn('model', context)
+        self.assertFalse(any(m.startswith('config/') and m != 'config/read'
+                             for m, _ in server.requests))
+
+    async def test_bad_skill_inventory_never_starts_context_or_classifies(self):
+        for value in ({}, {'data': []}, {'data': [None]},
+                      {'data': [{'cwd': '/other', 'skills': []}]},
+                      {'data': [{'cwd': '/source', 'skills': [], 'errors': ['unavailable']}]},
+                      *({'data': [{'cwd': '/source', 'skills': skills}]} for skills in (
+                          [None], [{}], [{'path': 'relative'}], [{'path': '/bad\x00path'}],
+                          [{'path': '/x'}, {'path': '/x'}], [{'path': '/x'}] * 1025))):
+            class Server(IntentServer):
+                async def request(self, method, params, **kwargs):
+                    if method == 'skills/list':
+                        self.requests.append((method, params))
+                        return value
+                    return await super().request(method, params, **kwargs)
+            server = Server()
+            with self.assertRaisesRegex(RuntimeError, 'classifier_skills_unavailable'):
+                await PhoneIntentRouter(server, '/source').classify('你好', [])
+            self.assertEqual([m for m, _ in server.requests], ['config/read', 'skills/list'])
+
+    async def test_empty_skill_inventory_is_valid(self):
+        class Server(IntentServer):
+            async def request(self, method, params, **kwargs):
+                if method == 'skills/list':
+                    self.requests.append((method, params))
+                    return {'data': [{'cwd': '/source', 'skills': [], 'errors': []}]}
+                return await super().request(method, params, **kwargs)
+        server, trace = Server(), {}
+        await PhoneIntentRouter(server, '/source').classify('你好', [], trace=trace)
+        self.assertEqual(trace['excluded_skills'], 0)
+
+    async def test_skill_inventory_wait_obeys_original_deadline_without_retry(self):
+        class Server(IntentServer):
+            async def request(self, method, params, **kwargs):
+                if method == 'skills/list':
+                    self.requests.append((method, params))
+                    await asyncio.Event().wait()
+                return await super().request(method, params, **kwargs)
+        server, trace = Server(), {}
+        with self.assertRaises(TimeoutError):
+            await PhoneIntentRouter(server, '/source').classify('你好', [], timeout=.03, trace=trace)
+        self.assertEqual(trace['failure_phase'], 'skills_inventory')
+        self.assertEqual([m for m, _ in server.requests], ['config/read', 'skills/list'])
+
     async def test_login_check_uses_remaining_budget_not_three_second_cutoff(self):
         from unittest.mock import AsyncMock
         class Server(IntentServer):
@@ -305,7 +366,7 @@ class IntentLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(params['approvalPolicy'], 'never')
         self.assertNotIn('model', params)
         self.assertFalse(any(key.startswith('model') for key in params['config']))
-        self.assertEqual([method for method, _ in server.requests], ['config/read', 'thread/start', 'turn/start'])
+        self.assertEqual([method for method, _ in server.requests], ['config/read', 'skills/list', 'thread/start', 'turn/start'])
         self.assertIs(params['config']['mcp_servers']['slow.example']['enabled'], False)
 
     async def test_usage_metrics_require_exact_turn_and_never_retain_text(self):
@@ -356,7 +417,7 @@ class IntentLifecycleTests(unittest.IsolatedAsyncioTestCase):
         result = await router.classify('模拟问候', [], timeout=.3)
         self.assertEqual(result['kind'], 'greeting')
         self.assertEqual(server.handlers, [])
-        self.assertEqual([m for m, _ in server.requests], ['config/read', 'thread/start', 'turn/start'])
+        self.assertEqual([m for m, _ in server.requests], ['config/read', 'skills/list', 'thread/start', 'turn/start'])
 
     async def test_missing_config_does_not_start_a_tool_enabled_classifier(self):
         class Server(IntentServer):

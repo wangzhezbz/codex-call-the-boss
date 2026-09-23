@@ -216,6 +216,67 @@ class BridgeStopTests(unittest.IsolatedAsyncioTestCase):
         self.host.receive(output, processing=processing)
         return output
 
+    async def replay_delayed_processing(self, limit, delay=7.587):
+        # Replay host completion-only evidence at 1/20 wall time. Delivery
+        # alone must not release the started receipt under any deadline.
+        self.host.backend.confirmation_seconds = limit
+        async def delayed_host():
+            output = await self.owner.wait(self.host.event)
+            self.host.receive(output, processing=False)
+            started_ms = datetime.now(timezone.utc).timestamp() * 1000
+            await asyncio.sleep(delay / 20)
+            stamp = datetime.now(timezone.utc)
+            self.host.append({'timestamp': stamp.isoformat(), 'type': 'event_msg',
+                'payload': {'type': 'item_completed', 'thread_id': self.host.source,
+                    'turn_id': self.host.root, 'started_at_ms': started_ms,
+                    'completed_at_ms': stamp.timestamp() * 1000,
+                    'item': {'type': 'AgentMessage', 'id': 'delayed-processing'}}})
+        delivery = asyncio.create_task(delayed_host())
+        await self.route()
+        await delivery
+        self.assertEqual(len(self.bridge.pending.job['stop_offers']), 1)
+        return self.bridge.pending.job['stop_delivery_results'][0]['verification']
+
+    async def test_observed_delayed_processing_does_not_fit_old_bound(self):
+        result = await self.replay_delayed_processing(6 / 20)
+        self.assertTrue(result['delivered_to_model'])
+        self.assertFalse(result['execution_confirmed'])
+        self.assertEqual(self.bridge.local_tts.texts, [COMMAND_QUEUED])
+        self.assertIsNone(result['confirmation_timing']['processing_observed_ms'])
+
+    async def test_current_bound_waits_for_evidence_then_plays_full_receipt_once(self):
+        result = await self.replay_delayed_processing(12 / 20)
+        self.assertTrue(result['execution_confirmed'])
+        self.assertEqual(self.bridge.local_tts.texts, [COMMAND_RECEIPT])
+        self.assertGreaterEqual(result['confirmation_timing']['processing_observed_ms'], 379)
+        self.assertLess(result['confirmation_timing']['elapsed_ms'], 600)
+
+    async def test_latest_twenty_second_host_delay_exceeds_twelve_seconds(self):
+        result = await self.replay_delayed_processing(12 / 20, 20.307)
+        self.assertFalse(result['execution_confirmed'])
+        self.assertEqual(self.bridge.local_tts.texts, [COMMAND_QUEUED])
+
+    async def test_latest_twenty_second_host_delay_fits_current_bound(self):
+        result = await self.replay_delayed_processing(30 / 20, 20.307)
+        self.assertTrue(result['execution_confirmed'])
+        self.assertEqual(self.bridge.local_tts.texts, [COMMAND_RECEIPT])
+        self.assertLess(result['confirmation_timing']['elapsed_ms'], 1500)
+
+    async def test_processing_after_current_deadline_never_gets_false_started_receipt(self):
+        result = await self.replay_delayed_processing(30 / 20, 35)
+        self.assertTrue(result['delivered_to_model'])
+        self.assertFalse(result['execution_confirmed'])
+        self.assertEqual(self.bridge.local_tts.texts, [COMMAND_QUEUED])
+        self.assertIsNone(result['confirmation_timing']['processing_observed_ms'])
+
+    def test_confirmation_policy_default_is_thirty_and_override_is_bounded(self):
+        args = dict(rollout_path=lambda _:self.host.path, hook_config=self.host.hook)
+        self.assertEqual(StopBackend(self.host.box, **args).confirmation_seconds, 30)
+        self.assertEqual(StopBackend(self.host.box, confirmation_seconds=12, **args).confirmation_seconds, 12)
+        for invalid in (0, -1, 30.01, True, '30', float('inf'), float('nan')):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                StopBackend(self.host.box, confirmation_seconds=invalid, **args)
+
     async def test_real_bridge_commit_to_exact_source_then_complete_selected_receipt(self):
         delivery = asyncio.create_task(self.host_output())
         await self.route()

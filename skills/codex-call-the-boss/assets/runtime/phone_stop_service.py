@@ -20,9 +20,11 @@ def create_backend():
     directory = agent.STATE_DIR / 'stop-transport'
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     mailbox = StopMailbox(directory)  # Refuses an unsafe existing directory.
-    reader = agent.PhoneDaemon(agent.load_config())
+    config = agent.load_config()
+    reader = agent.PhoneDaemon(config)
     return StopBackend(mailbox, rollout_path=reader._find_rollout_path,
-                       hook_config=agent.GLOBAL_HOOK_PATH)
+                       hook_config=agent.GLOBAL_HOOK_PATH,
+                       confirmation_seconds=config.get('phone_stop_confirmation_seconds', 30))
 
 
 async def process_hook(event):

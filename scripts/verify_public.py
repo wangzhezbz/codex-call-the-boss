@@ -46,9 +46,14 @@ with zipfile.ZipFile(archive_path) as archive:
         assert path.parts[0] == 'codex-call-the-boss'
         assert not any(p in path.parts for p in ('.venv', '__pycache__', '.codex-phone', 'conversations'))
     manifest = json.loads(archive.read('codex-call-the-boss/package-manifest.json'))
+    assert archive.read('codex-call-the-boss/package-manifest.json') == (
+        ROOT / 'skills/codex-call-the-boss/package-manifest.json').read_bytes()
     assert len(names) == len(manifest['files']) + 1
     for name, digest in manifest['files'].items():
         assert hashlib.sha256(archive.read('codex-call-the-boss/' + name)).hexdigest() == digest
+        source = (ROOT / name if name in {'LICENSE', 'THIRD_PARTY_NOTICES.md'}
+                  else ROOT / 'skills/codex-call-the-boss' / name)
+        assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
     assert archive.read('codex-call-the-boss/LICENSE') == (ROOT / 'LICENSE').read_bytes()
 expected = (ROOT / 'dist/SHA256SUMS').read_text().split()[0]
 assert hashlib.sha256(archive_path.read_bytes()).hexdigest() == expected
