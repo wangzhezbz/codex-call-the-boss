@@ -2,6 +2,13 @@
 
 Read this file only for initial setup, repair, or migration to another Mac.
 
+Do not assume that a first-time user has the maintainer's configuration or any
+installed runtime. Check prerequisites before choosing the installation path.
+For the public package, configure the synchronous Stop route described in
+section 5.1 after approval. Legacy relay instructions are mode-specific, not
+additional first-time setup steps. Preserve an existing mode unless migration
+is authorized.
+
 ## 1. Confirm the supported path
 
 The no-extra-service-cost path requires all of the following:
@@ -58,7 +65,7 @@ Run `set-realtime-voice` only after the self-test passes and the saved audio is 
 
 The default local mode uses the selected macOS voice throughout. Explicit `set-realtime-voice` selects `realtime-unified`: opening, receipts, failure notices and conversation all use the same native voice. Run `prepare-voice` explicitly on first use, voice change, or a notice-library update. It prepares missing clips one at a time, prints progress, and gives each clip a bounded deadline. Validated clips remain private under `~/.codex-phone/native-speech`; integrity and voice are checked on reuse. Ordinary `stage-report` verifies this library and generates only its dedicated opening. A queued staged call reads cached audio only. Missing clips stop before dialing, not after pickup; no automatic system-voice substitution or hidden full-library generation is allowed.
 
-Native mode additionally requires a discoverable `libopus` library and output-only offline speech QA (`whisper-cli` plus the local `ggml-large-v3-turbo-q5_0.bin` model). Inspect availability first; do not silently download a model or install packages. If missing, explain that these are free local audio-processing/validation dependencies, request installation approval, and keep native mode disabled until available. They never recognize live user commands or generate answers. On this Mac libopus is supplied by Homebrew. The setup's ordinary local renderer does not require libopus.
+Native mode additionally requires a discoverable `libopus` library and output-only offline speech QA (`whisper-cli` plus the local `ggml-large-v3-turbo-q5_0.bin` model). Inspect availability first; do not silently download a model or install packages. If missing, explain that these are free local audio-processing/validation dependencies, request installation approval, and keep native mode disabled until available. They never recognize live user commands or generate answers. Detect libopus on the user's machine rather than assuming a maintainer-specific Homebrew installation. The setup's ordinary local renderer does not require libopus.
 
 Before a new call, native clip preparation runs separately from the conversation connection. A rejected clip may be rendered once more in a fresh context; both rejected samples are preserved privately. This is at most two speech-generation attempts, never two telephone calls. Authentication, connection and availability errors stop immediately. If report preparation fails, the wrapper records `failed: native_audio_preparation` for the exact active root turn so neither completion observer can try again. It must not label the failure a user-requested skip, disable the subscription, or affect later distinct turns. Opening scripts must match exactly after punctuation normalization, and the offline waveform check must pass; homophones may be compared with tone-preserving Mandarin pronunciation, but missing clauses and changed negations must still fail.
 
@@ -82,6 +89,32 @@ python3 scripts/call_the_boss.py set-phone-voice --identifier "EXACT_IDENTIFIER_
 The local selection command verifies the identifier against the live macOS inventory and preserves the configured rate and pitch. It deliberately switches all phone speech back to the local renderer; run `set-realtime-voice` again to restore the Codex conversational voice. A voice change does not itself authorize a test call.
 
 ## 5. Establish exact-task command transport
+
+### 5.1 First-time setup: synchronous Stop
+
+Read [synchronous-stop.md](synchronous-stop.md) completely. After approved
+runtime installation and private iPhone configuration, use the installed
+runtime's own interpreter to select `synchronous_stop` and install its hook,
+following that reference's idle-line, stopped-daemon and trust checks.
+Transport selection does not subscribe a task or authorize a call.
+
+This route needs no fixed relay identity and no `start-relay` process.
+Check the real host's hook support; if it is unavailable, stop and explain the
+missing requirement rather than switching to a private entry point. For
+subscription, report staging, tests and command receipt, that reference takes
+precedence over the legacy descriptions in sections 5.2 and 6 and over
+legacy watcher acceptance checks. Shared voice and audio checks still apply.
+
+If the user requests configuration without an immediate call, do not dial.
+If they also explicitly requested subscription, finish setup with the
+one-turn `skip-call` exemption; future completed turns remain enabled.
+
+### 5.2 Existing legacy desktop-relay installations only
+
+The following relay-identity and startup instructions are not required for
+synchronous Stop. Do not create a relay task during first-time setup of the
+public package. Use this subsection only for an existing, explicitly retained
+legacy desktop-relay installation.
 
 The phone conversation uses an ephemeral read-only fork for questions. An accepted action request must return to the exact persisted source task through Codex desktop's `send_message_to_thread` tool. Do not use `codex exec resume`: a desktop-owned task already has an active writer, so the CLI can acknowledge the phone request yet fail with a thread-store conflict.
 
