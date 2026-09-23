@@ -31,7 +31,7 @@ for lang, copy in COPY.items():
 <path d="M895 320h26v-32h15v64h15v-100h15v138h15v-110h15v61h15v-35h18" fill="none" stroke="#a9cabe" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
 <circle cx="1080" cy="280" r="13" fill="#b7d6ca"/><circle cx="1080" cy="280" r="25" fill="none" stroke="#537267"/>
 <path d="M58 446H1222" stroke="#3a454e"/>
-<text x="58" y="490" font-size="16" fill="#dce6ec">macOS + iPhone</text><text x="1222" y="490" text-anchor="end" font-size="14" fill="#94a5b3">{setup} · MIT</text>
+<text x="58" y="490" font-size="16" fill="#dce6ec">macOS + iPhone</text>
 </g></svg>'''
     path = ROOT / 'docs/assets' / f'hero-{lang}.svg'
     path.parent.mkdir(parents=True, exist_ok=True)
