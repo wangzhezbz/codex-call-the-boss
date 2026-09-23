@@ -1,0 +1,5 @@
+aiortc==1.15.0
+aioice==0.10.2
+av==17.1.0
+sounddevice==0.5.3
+websockets==17.0.1

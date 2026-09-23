@@ -216,3 +216,22 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Phone bridge private state must never be published.
+.codex-phone/
+.codex/
+.env
+.env.*
+!.env.example
+*.pcm
+*.wav
+*.mp3
+*.m4a
+*.sqlite
+*.db
+.DS_Store
+
+# Only the reviewed public distribution belongs in dist.
+!dist/
+dist/*
+!dist/codex-call-the-boss.skill.zip
+!dist/SHA256SUMS
