@@ -14,7 +14,7 @@ Let Codex call you when the work is done. Get a brief update, ask questions, and
 | :-- | :-- | :-- |
 | Local skill; setup required | Not supported | Not supported |
 
-This is a local phone bridge, not a hosted calling service or a standalone mobile app. The five languages above cover public documentation, **not verified five-language phone conversations**. Internal maintenance references remain primarily English.
+Use the calling features already on your Mac and iPhone—no extra mobile app needed. Codex guides you through the initial setup.
 
 ## How it works
 
@@ -24,7 +24,7 @@ This is a local phone bridge, not a hosted calling service or a standalone mobil
 4. Give one next task. Its original words return to the **same task**, where Codex executes within its normal permissions.
 5. When that work finishes, the next completion can trigger one new call.
 
-The voice context answers questions; it does not become a separate task executor. Call delivery, command delivery, execution, and completion are tracked separately.
+Work assigned by phone returns to your original Codex task. Open that task anytime to check progress and results.
 
 ## Get started
 
@@ -34,13 +34,13 @@ Download the [skill ZIP](dist/codex-call-the-boss.skill.zip), attach it to the t
 
 > Read the attached SKILL.md. Reuse this Mac's existing phone configuration and enable completion calls and phone commands only for this task. Check readiness first; guide me through anything missing. Do not change other tasks' subscriptions.
 
-If the skill is already installed, you can simply invoke `$codex-call-the-boss` with that request. Importing the archive alone does not enable calling. A running call or pending queue is not a reason to overwrite or restart the shared runtime.
+If the skill is already installed, invoke `$codex-call-the-boss` with that request. Only tasks you explicitly enable will call you. Finish any calls and wait for pending work before updating or reconfiguring.
 
 ### A new Mac
 
 You need Phone.app, a signed-in Codex desktop app, Python 3.11+, iPhone call relay, a reachable receiving number different from the outgoing line, BlackHole 2ch/16ch, and the necessary Accessibility permissions. The target number must have an identifiable Call action in Phone.app's recents. The Mac and Codex must remain awake and running.
 
-Extract the ZIP and ask Codex to read its `SKILL.md` and guide setup. The installer uses pinned runtime dependencies and validates a new version before activation. Installing drivers or dependencies, changing permissions, and selecting a potentially billed speech provider require your approval.
+Extract the ZIP and ask Codex to read its `SKILL.md` and guide setup. Codex asks for your approval before installing components, changing permissions, or enabling a paid voice service.
 
 For a read-only inventory, from the extracted `codex-call-the-boss` folder:
 
@@ -48,7 +48,7 @@ For a read-only inventory, from the extracted `codex-call-the-boss` folder:
 python3 scripts/call_the_boss.py plan
 ```
 
-After installation, `doctor` checks local readiness. Only after configuration and an explicit request does `enable` subscribe the current task. Follow [setup](skills/codex-call-the-boss/references/setup.md) and the [synchronous Stop route](skills/codex-call-the-boss/references/synchronous-stop.md); do not use a rejected private relay or a second writer for the source task.
+Ask Codex to check the configuration and enable calls for the current task. Start with a test call to check that you can hear the report and send an instruction. See the [setup guide](skills/codex-call-the-boss/references/setup.md) for details.
 
 ## Voice and costs
 
@@ -59,21 +59,21 @@ After installation, `doctor` checks local readiness. Only after configuration an
 
 ## Current limits
 
-- **Not production-ready.** Runtime tests are not handset or clean-machine acceptance.
-- The official synchronous Stop route waits for up to 480 seconds by default. It cannot wake a closed or sleeping Codex task. Each call can submit one action; an already submitted command cannot be immediately cancelled through that one-shot window.
-- The full “started” receipt requires exact-task processing evidence within six seconds. Slow host reporting may still produce a delivery-only receipt even though the task later starts.
-- One attempt per completion, no automatic redial of a failed or uncertain call. Routine “still processing” filler is off; real failures are still reported.
-- Speech, interruption handling, network conditions, account quotas, and host-version compatibility still need real-call verification.
+- **Experimental; not intended for critical workflows that depend on phone notifications.** Try it on your own devices first.
+- Keep your Mac and Codex running and awake. The phone-command window lasts up to 8 minutes by default, with one execution command per call. To cancel a submitted command, return to the original task.
+- Delivery does not mean execution has started. If the call cannot confirm execution status, check progress in the original task.
+- One call attempt per completion, with no automatic redial. Ask Codex to try again if you miss a call or it fails.
+- Call quality depends on your network, devices, Codex version, and account limits. Documentation is available in five languages; test your preferred spoken language before relying on it.
 - The receiving person is not authenticated. Do not use shared or forwarded numbers for unattended sensitive commands.
 - Phone records remain in local private state until the owner removes them; no automatic retention policy is implied. Do not upload that state directory.
-- The skill does not supply unrelated task tools, such as a native fullscreen celebration effect.
+- Phone instructions use the tools and permissions of the original task. Actions requiring additional approval still need your confirmation.
 
 ## Develop and report problems
 
 The reusable skill is under [`skills/codex-call-the-boss`](skills/codex-call-the-boss). Its runtime and tests are under `assets/runtime`. [Development, validation, and packaging](docs/DEVELOPMENT.md) describes the no-call checks. [Security guidance](SECURITY.md) explains what **not** to put in an issue.
 
-Document translations are welcome. Keep limitations and setup steps aligned across all five editions; do not translate feature claims into stronger promises.
+Bug reports, suggestions, and translation improvements are welcome.
 
 ## License and attribution
 
-The repository's existing [MIT license](LICENSE) is preserved. External dependencies and vendor examples have their own terms; see [third-party notices](THIRD_PARTY_NOTICES.md). This is an independent project, not an official OpenAI, Apple, or ByteDance product.
+Licensed under [MIT](LICENSE). External dependencies and vendor examples have their own terms; see [third-party notices](THIRD_PARTY_NOTICES.md). This is an independent project, not an official OpenAI, Apple, or ByteDance product.
