@@ -1,6 +1,6 @@
-"""Owner-requested Doubao 2.0 connectivity client; no phone-mode changes.
+"""Owner-selected Doubao 2.0 connectivity client; no phone-mode changes.
 
-The resource and speaker are intentionally pinned. No model/voice fallback,
+Legacy selections stay pinned; new owners explicitly choose a profile. No model/voice fallback,
 automatic retry, or API credential in project files is permitted.
 """
 from __future__ import annotations
@@ -10,6 +10,7 @@ import getpass
 import json
 import logging
 import os
+import re
 from pathlib import Path
 import stat
 import time
@@ -25,6 +26,8 @@ ENDPOINT = 'wss://openspeech.bytedance.com/api/v3/tts/bidirection'
 MODEL_NAME = 'Doubao-语音合成-2.0'
 RESOURCE_ID = 'seed-tts-2.0'
 SPEAKER = 'zh_female_tianmeixiaoyuan_uranus_bigtts'
+MODEL_OPTIONS = {'seed-tts-2.0': 'Doubao-语音合成-2.0',
+                 'seed-icl-2.0': 'Doubao-声音复刻-2.0'}
 PREVIOUS_SPEAKER = 'zh_female_tianmeixiaoyuan_moon_bigtts'
 SAMPLE_RATE = 48000
 CREDENTIAL_PATH = Path.home() / '.codex-phone' / 'doubao-tts.json'
@@ -43,21 +46,39 @@ def redact(value, secret):
     return str(value).replace(secret, '[redacted]')[:800]
 
 
-def configure_private(path=CREDENTIAL_PATH):
+def validate_selection(resource_id, speaker):
+    if resource_id not in MODEL_OPTIONS:
+        raise DoubaoError('unsupported_model')
+    if not isinstance(speaker, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,160}', speaker):
+        raise DoubaoError('invalid_speaker_id')
+    return {'resource_id': resource_id, 'model_name': MODEL_OPTIONS[resource_id],
+            'speaker': speaker}
+
+
+def configure_private(path=CREDENTIAL_PATH, *, choose_profile=False):
     """One exclusive mode-600 write via hidden stdin, never argv or env."""
     if path.exists() or path.is_symlink():
         raise DoubaoError('credentials_already_exist', 'Private credentials already exist; not overwritten')
+    profile = {'resource_id': RESOURCE_ID, 'model_name': MODEL_NAME, 'speaker': SPEAKER}
+    if choose_profile:
+        print('Choose the service you enabled: seed-tts-2.0 (recommended) or seed-icl-2.0 (your authorized cloned voice).')
+        resource = input('Resource ID (required): ').strip()
+        speaker = input('Voice ID copied from the matching official catalog (required): ').strip()
+        profile = validate_selection(resource, speaker)
+        print(json.dumps(profile, ensure_ascii=False))
+        if input('Save this selection? Type YES: ').strip() != 'YES':
+            raise DoubaoError('selection_not_confirmed')
+        profile['profile_version'] = 2
     secret = getpass.getpass('Doubao API key (hidden): ').strip()
     if not secret or any(ch.isspace() for ch in secret):
         raise DoubaoError('invalid_credential_format')
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, 'w') as stream:
-        json.dump({'api_key': secret, 'resource_id': RESOURCE_ID,
-                   'model_name': MODEL_NAME, 'speaker': SPEAKER}, stream, ensure_ascii=False)
+        json.dump({'api_key': secret, **profile}, stream, ensure_ascii=False)
         stream.flush()
         os.fsync(stream.fileno())
-    return {'stored': True, 'mode': '0600', 'model': MODEL_NAME, 'speaker': SPEAKER}
+    return {'stored': True, 'mode': '0600', 'model': profile['model_name'], 'speaker': profile['speaker']}
 
 
 def _load_profile(path, speakers):
@@ -70,8 +91,13 @@ def _load_profile(path, speakers):
                 or info.st_uid != os.getuid()):
             raise DoubaoError('credentials_permissions')
         config = json.load(stream)
-    if (config.get('resource_id') != RESOURCE_ID or config.get('speaker') not in speakers
-            or config.get('model_name') != MODEL_NAME):
+    if speakers is None and config.get('profile_version') == 2:
+        selection = validate_selection(config.get('resource_id'), config.get('speaker'))
+        if config.get('model_name') != selection['model_name']:
+            raise DoubaoError('model_name_mismatch')
+    elif (config.get('resource_id') != RESOURCE_ID
+          or config.get('speaker') not in (speakers if speakers is not None else {SPEAKER})
+          or config.get('model_name') != MODEL_NAME or 'profile_version' in config):
         raise DoubaoError('pinned_model_or_voice_mismatch')
     key = config.get('api_key')
     if not isinstance(key, str) or not key or any(ch.isspace() for ch in key):
@@ -80,7 +106,11 @@ def _load_profile(path, speakers):
 
 
 def load_private(path=CREDENTIAL_PATH):
-    return _load_profile(path, {SPEAKER})['api_key']
+    return load_profile(path)['api_key']
+
+
+def load_profile(path=CREDENTIAL_PATH):
+    return _load_profile(path, None)
 
 
 def select_approved_speaker(path=CREDENTIAL_PATH):
@@ -114,18 +144,19 @@ def select_approved_speaker(path=CREDENTIAL_PATH):
             'backup': str(backup), 'mode': '0600'}
 
 
-def request_parameters():
+def request_parameters(speaker=None):
     # Standard catalog voice: do not set the clone-only req_params.model.
     # Model selection is the mandatory X-Api-Resource-Id header above.
-    return {'speaker': SPEAKER,
+    return {'speaker': SPEAKER if speaker is None else speaker,
             'audio_params': {'format': 'pcm', 'sample_rate': SAMPLE_RATE}}
 
 
 class DoubaoClient:
-    def __init__(self, key, *, connect=None):
+    def __init__(self, key, *, connect=None, resource_id=RESOURCE_ID, speaker=SPEAKER):
         if not isinstance(key, str) or not key:
             raise DoubaoError('missing_credential')
         self._key = key
+        self.profile = validate_selection(resource_id, speaker)
         self._connect = connect or websockets.connect
         self.last_result = {}
 
@@ -174,8 +205,8 @@ class DoubaoClient:
         started = time.monotonic()
         websocket = None
         result = self.last_result = {
-            'passed': False, 'model': MODEL_NAME, 'resource_id': RESOURCE_ID,
-            'speaker': SPEAKER, 'format': 'pcm_s16le', 'sample_rate': SAMPLE_RATE,
+            'passed': False, 'model': self.profile['model_name'], 'resource_id': self.profile['resource_id'],
+            'speaker': self.profile['speaker'], 'format': 'pcm_s16le', 'sample_rate': SAMPLE_RATE,
             'text': text, 'text_characters': len(text), 'text_submitted': False,
             'audio_bytes': 0, 'events': [], 'usage': {}, 'network_attempts': 1,
             'production_changed': False, 'dial_attempted': False,
@@ -185,7 +216,7 @@ class DoubaoClient:
         try:
             async with asyncio.timeout(timeout):
                 websocket = await self._connect(ENDPOINT, additional_headers={
-                    'X-Api-Key': self._key, 'X-Api-Resource-Id': RESOURCE_ID,
+                    'X-Api-Key': self._key, 'X-Api-Resource-Id': self.profile['resource_id'],
                     'X-Api-Connect-Id': str(uuid.uuid4()),
                     'X-Control-Require-Usage-Tokens-Return': '*',
                 }, max_size=10 * 1024 * 1024, open_timeout=10, close_timeout=3,
@@ -200,7 +231,7 @@ class DoubaoClient:
                 result['connection_started'] = True
                 stage = 'session_start'
                 session_id = str(uuid.uuid4())
-                params = request_parameters()
+                params = request_parameters(self.profile['speaker'])
                 await protocol.start_session(websocket, json.dumps({
                     'event': int(protocol.EventType.StartSession), 'req_params': params,
                 }, ensure_ascii=False).encode(), session_id)
@@ -268,7 +299,7 @@ class DoubaoClient:
 if __name__ == '__main__':
     import sys
     if sys.argv[1:] == ['configure']:
-        print(json.dumps(configure_private(), ensure_ascii=False))
+        print(json.dumps(configure_private(choose_profile=True), ensure_ascii=False))
     elif sys.argv[1:] == ['select-approved-speaker', '--confirm']:
         print(json.dumps(select_approved_speaker(), ensure_ascii=False))
     else:

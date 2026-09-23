@@ -56,9 +56,21 @@ Codex의 안내에 따라 설정하면 됩니다. 코드의 매개변수를 직�
 
 ## 음성과 비용
 
-인식과 답변은 현재 Codex 로그인 및 사용 한도를 이용하며, 이 경로에는 OpenAI API Key가 필요하지 않습니다. 통화는 본인의 휴대전화 요금제를 사용하므로 무료·무제한을 보장하지 않습니다. 기본값은 시스템 음성입니다. 선택 사항인 Doubao TTS는 본인 인증 정보와 비용 동의가 필요하며 **Doubao speech synthesis 2.0 / `seed-tts-2.0`** 모델을 고정 사용합니다. [음성 설정](../skills/codex-call-the-boss/references/doubao.md)을 참고하세요.
+처음 설정할 때 Codex가 **시스템 음성과 Doubao 음성 중 무엇을 사용할지** 묻고 선택을 기다립니다.
 
-배포 파일에는 전화번호, 키, 로그인 세션, 음성 캐시, 통화 녹음이 포함되지 않습니다.
+- **시스템 음성**: Mac에 설치된 목소리를 선택하며 별도 TTS 제공업체 비용은 없습니다.
+- **Doubao 음성**: 모델과 목소리를 직접 선택합니다. 읽을 텍스트가 Volcengine으로 전송되며 이용 요금이 발생할 수 있습니다.
+- 인식과 답변은 로그인된 Codex 계정과 한도, 통화는 휴대전화 요금제를 사용합니다. 이 경로에는 OpenAI API Key가 필요하지 않습니다.
+
+### Doubao를 선택했다면
+
+1. [Volcengine 콘솔](https://console.volcengine.com/ark/region:cn-beijing/overview)에서 가입하거나 로그인하세요.
+2. [TTS 모델 활성화](https://console.volcengine.com/ark/region:cn-beijing/openManagement?advancedActiveKey=model&tab=TTS)에서 모델을 선택하세요. 기본 제공 목소리는 **Doubao speech synthesis 2.0**(`seed-tts-2.0`)을 권장합니다. 사용 권한이 있는 복제 음성이 이미 있다면 **Doubao voice cloning 2.0**(`seed-icl-2.0`)을 선택할 수 있습니다. 가격을 확인한 뒤 직접 활성화하세요. 음성 복제 서비스 자체는 스킬에 포함되지 않습니다.
+3. [음색 라이브러리](https://console.volcengine.com/speech/new/voices?projectName=default)에서 선택한 모델로 필터링하고 들어본 뒤 정확한 음색 ID를 복사하세요. 표준 2.0에서는 甜美小源 2.0, Vivi 2.0, 云舟 2.0부터 들어볼 수 있으며 최종 선택은 사용자가 합니다.
+4. [API Key 관리](https://console.volcengine.com/speech/new/setting/apikeys?projectName=default)에서 음성 서비스 키를 만드세요. Codex의 안내에 따라 비공개 터미널의 숨김 입력으로만 등록하고 채팅이나 저장소에 붙여 넣지 마세요.
+5. 모델, 음색, 발생 가능한 요금을 확인하면 Codex가 선택을 저장하고 합성을 확인해 샘플을 제공합니다. 들어본 뒤 활성화하며 이 단계에서 전화는 걸지 않습니다.
+
+현재 연결 방식은 위 두 가지 2.0 모델을 지원합니다. 다른 모델은 활성화 전에 호환성을 확인해야 합니다. ID와 자세한 내용은 [Doubao 설정](../skills/codex-call-the-boss/references/doubao.md)을 참고하세요. 기존 사용자의 설정은 유지하며 키, 번호, 로그인 정보, 녹음은 배포하지 않습니다.
 
 ## 현재 제한
 

@@ -60,7 +60,9 @@ class RendererTests(unittest.IsolatedAsyncioTestCase):
         self.client.synthesize = AsyncMock(return_value=pcm(1200))
         self.factory = Mock(return_value=self.client)
         self.validate = AsyncMock(return_value={'passed': passed})
-        self.key_patch = patch.object(ds, 'load_private', return_value='test-key')
+        self.key_patch = patch.object(ds, 'load_profile', return_value={
+            'api_key': 'test-key', 'model_name': 'Doubao-语音合成-2.0',
+            'resource_id': RESOURCE_ID, 'speaker': SPEAKER})
         self.key_patch.start()
         self.addCleanup(self.key_patch.stop)
         return ds.DoubaoSpeechRenderer(cache_dir=root/'cache', credential_path=root/'private.json',
@@ -87,6 +89,24 @@ class RendererTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(DoubaoError, 'prepared_audio_missing'):
             await r.synthesize('老板，尚未准备的开场。')
         self.factory.assert_not_called()
+
+    async def test_selected_profile_is_used_and_caches_do_not_cross_voices(self):
+        r = self.renderer()
+        text = '测试缓存隔离。'
+        await r.prepare([text])
+        first = r._paths(text)[0]
+        self.factory.assert_called_once_with('test-key', resource_id=RESOURCE_ID, speaker=SPEAKER)
+        other = {'api_key': 'test-key', 'model_name': 'Doubao-声音复刻-2.0',
+                 'resource_id': 'seed-icl-2.0', 'speaker': 'chosen_voice'}
+        with patch.object(ds, 'load_profile', return_value=other):
+            r2 = ds.DoubaoSpeechRenderer(cache_dir=r.cache_dir, credential_path=r.credential_path,
+                                       validate=self.validate, client_factory=self.factory)
+            self.assertNotEqual(first, r2._paths(text)[0])
+            self.assertIsNone(r2.cached(text))
+            await r2.synthesize(text)
+            self.factory.assert_called_with('test-key', resource_id='seed-icl-2.0', speaker='chosen_voice')
+            with self.assertRaisesRegex(DoubaoError, 'profile_changed_during_render'):
+                await r.synthesize('尚未缓存的新句子。')
 
     async def test_live_sentence_can_render_but_missing_notice_cannot(self):
         r = self.renderer()
@@ -237,8 +257,10 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
     async def test_incomplete_notice_library_fails_before_any_call_preflight(self):
         b = self.bridge()
         root = Path(tempfile.mkdtemp(prefix='doubao-missing-library-test-'))
-        b.local_tts = ds.DoubaoSpeechRenderer(cache_dir=root/'cache', credential_path=root/'key.json',
-                                            validate=AsyncMock())
+        with patch.object(ds, 'load_profile', return_value={
+                'model_name': 'Doubao-语音合成-2.0', 'resource_id': RESOURCE_ID, 'speaker': SPEAKER}):
+            b.local_tts = ds.DoubaoSpeechRenderer(cache_dir=root/'cache', credential_path=root/'key.json',
+                                                validate=AsyncMock())
         b.daemon.ensure_codex = AsyncMock()
         with self.assertRaises(NativeNoticeLibraryError):
             await b._prepare_call()

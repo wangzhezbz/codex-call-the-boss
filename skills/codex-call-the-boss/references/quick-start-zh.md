@@ -25,6 +25,14 @@
 
 ## 3. 检查配置并试打一通
 
+配音配置前，Codex 会先问你选择系统语音还是豆包语音，不会直接替你决定。
+
+- 选系统语音：试听并选择 Mac 已安装的声音，无需申请配音 API Key。
+- 选豆包：先打开[火山引擎控制台](https://console.volcengine.com/ark/region:cn-beijing/overview)登录，再到[模型开通页面](https://console.volcengine.com/ark/region:cn-beijing/openManagement?advancedActiveKey=model&tab=TTS)选择模型。普通配音推荐语音合成 2.0；已有获授权复刻音色时可选声音复刻 2.0。
+- 在[音色库](https://console.volcengine.com/speech/new/voices?projectName=default)按模型筛选、试听并复制音色 ID。标准 2.0 可先试听甜美小源、Vivi、云舟，最后由你选择。
+- 在 [API Key 管理](https://console.volcengine.com/speech/new/setting/apikeys?projectName=default)创建语音服务密钥，通过 Codex 引导的私有终端隐藏输入。不要把密钥发到聊天里。
+- 确认费用后再进行合成试听。具体音色 ID 与兼容性说明见[豆包配置](doubao.md)。
+
 配置完成后，让 Codex 检查运行状态。确认可以测试后，说：
 
 > 打给我测试一次。
@@ -48,8 +56,8 @@
 
 ## 声音、费用与使用提醒
 
-- 默认使用系统语音；识别和回答使用已登录的 Codex 及其账户额度，电话使用你自己的手机套餐。
-- 可选豆包配音需要你自己的凭据，并可能产生额外费用。需要时请让 Codex 按[豆包配置说明](doubao.md)引导，使用 Doubao-语音合成-2.0。
+- 首次使用由你选择配音方式；识别和回答使用已登录的 Codex 及其账户额度，电话使用你自己的手机套餐。
+- 豆包配音需要你自己的凭据，并可能产生额外费用；合成文本会发送至火山引擎。模型和音色由你确认后保存，已有用户的选择不会自动更改。
 - 每通电话最多提交一条执行指令，接收窗口默认最长 8 分钟，包含排队与通话准备时间。提交后如需取消，请回到原任务处理。
 - 指令送达不代表已经开始执行。如果电话提示执行状态尚未确认，请在原任务查看进度。
 - 电话不会增加原任务的权限。接听者身份不会被认证，不要用共享或转接号码处理无人值守的敏感任务。

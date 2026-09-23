@@ -56,10 +56,21 @@ Enable each task separately. Finish calls and wait for pending work before updat
 
 ## Voice and costs
 
-- Recognition and answers use the signed-in Codex account and its limits; no OpenAI API key is required by this path.
-- Calls use your existing mobile service. This is not a promise of free calls or unlimited account usage.
-- System speech is the default. Optional Doubao TTS can incur separate charges and requires your own credentials and approval. Its integration pins **Doubao speech synthesis 2.0 / `seed-tts-2.0`**; see [Doubao setup](skills/codex-call-the-boss/references/doubao.md).
-- No credentials, phone numbers, login sessions, voice caches, or call recordings are distributed.
+On first use, Codex asks you to choose **system speech or Doubao speech**. Nothing is selected on your behalf.
+
+- **System speech:** choose an installed Mac voice; no additional TTS-provider fee.
+- **Doubao speech:** choose a model and voice through the steps below. Synthesis text is sent to Volcengine, and usage may be billed.
+- Recognition and answers use your signed-in Codex account and its limits. Calls use your mobile plan; this path does not require an OpenAI API Key.
+
+### Set up Doubao
+
+1. Open the [Volcengine console](https://console.volcengine.com/ark/region:cn-beijing/overview) and sign in or register.
+2. Open [TTS model activation](https://console.volcengine.com/ark/region:cn-beijing/openManagement?advancedActiveKey=model&tab=TTS). For catalog voices, start with **Doubao speech synthesis 2.0** (`seed-tts-2.0`). If you already have an authorized cloned voice, choose **Doubao voice cloning 2.0** (`seed-icl-2.0`). Review prices and choose yourself; cloning is not included in this skill.
+3. Open the [voice library](https://console.volcengine.com/speech/new/voices?projectName=default), filter by your model, listen, and copy the exact voice ID. For standard 2.0, try 甜美小源 2.0, Vivi 2.0, or 云舟 2.0. You make the final choice.
+4. Create your speech-service key in [API Key management](https://console.volcengine.com/speech/new/setting/apikeys?projectName=default). Enter it only in the private hidden-input terminal Codex opens—never in chat or the repository.
+5. Confirm the model, voice and possible charges. Codex saves your choice, checks synthesis and offers a sample before activation. Testing does not place a call.
+
+The adapter supports the two 2.0 resources above; other models need a compatibility check before activation. See [Doubao setup](skills/codex-call-the-boss/references/doubao.md) for voice IDs and details. Existing users keep their selected voice. No keys, phone numbers, logins or recordings are distributed.
 
 ## Current limits
 

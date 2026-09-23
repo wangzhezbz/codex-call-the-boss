@@ -15,8 +15,11 @@ scripts/                          Header renderer and allowlisted package builde
 dist/                             Downloadable skill ZIP and SHA-256 checksum
 ```
 
-The shipped runtime is the reviewed 2026-09-22 snapshot; 923 tests passed on the
-maintainer's Mac. That is historical software-layer evidence, not a claim that
+The runtime began with the reviewed 2026-09-22 snapshot. The configurable
+Doubao onboarding update passed 927 local regression tests on 2026-09-23,
+including profile selection, request parameters and voice-cache separation.
+Provider calls are mocked in these tests; no paid synthesis or real call was
+performed for this update. This is software-layer evidence, not a claim that
 this repository has CI coverage, that every Codex release is compatible, or that
 another machine/handset has passed acceptance. The observed host was newer than
 the old reviewed CLI baseline; compatibility still needs explicit verification.

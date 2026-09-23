@@ -1,6 +1,6 @@
 """Explicitly selected Doubao 2.0 phone speech; Codex still owns all answers.
 
-Prepared reports/notices and live sentences use one pinned profile. This module
+Prepared reports/notices and live sentences use one owner-selected profile. This module
 does not dial, recognize caller speech, select another voice, or retry a request.
 """
 from __future__ import annotations
@@ -14,7 +14,7 @@ import time
 import uuid
 import wave
 
-from doubao_tts import DoubaoClient, DoubaoError, MODEL_NAME, RESOURCE_ID, SPEAKER, SAMPLE_RATE, load_private
+from doubao_tts import DoubaoClient, DoubaoError, SAMPLE_RATE, load_profile
 from native_speech import NativeNoticeLibraryError, NOTICE_TEXTS, atomic_write
 from speech_quality import ALIGNMENT_REVISION
 
@@ -82,7 +82,9 @@ class DoubaoSpeechRenderer:
         self.credential_path = Path(credential_path)
         self.validate = validate
         self.client_factory = client_factory
-        self.voice = SPEAKER
+        selected = load_profile(self.credential_path)
+        self.selection = {name: selected[name] for name in ('model_name', 'resource_id', 'speaker')}
+        self.voice = self.selection['speaker']
         self.cache_only = False
         self.last_spoken_text = ''
         self.rejected_evidence = []
@@ -95,8 +97,8 @@ class DoubaoSpeechRenderer:
         if not isinstance(text, str) or not text.strip() or len(text) > 500:
             raise DoubaoError('invalid_text')
         return {'renderer': RENDERER, 'revision': CACHE_REVISION,
-                'alignment_revision': ALIGNMENT_REVISION, 'model': MODEL_NAME,
-                'resource_id': RESOURCE_ID, 'speaker': SPEAKER,
+                'alignment_revision': ALIGNMENT_REVISION, 'model': self.selection['model_name'],
+                'resource_id': self.selection['resource_id'], 'speaker': self.voice,
                 'sample_rate': SAMPLE_RATE, 'format': 'pcm_s16le', 'text': text}
 
     def _paths(self, text):
@@ -132,7 +134,7 @@ class DoubaoSpeechRenderer:
         missing = [text for text in NOTICE_TEXTS if self.cached(text) is None]
         return {'ready': not missing, 'total': len(NOTICE_TEXTS),
                 'available': len(NOTICE_TEXTS)-len(missing), 'missing': missing,
-                'renderer': RENDERER, 'speaker': SPEAKER}
+                'renderer': RENDERER, 'speaker': self.voice}
 
     async def prepare(self, texts):
         for text in texts:
@@ -160,8 +162,11 @@ class DoubaoSpeechRenderer:
             if not allow_generation:
                 raise DoubaoError('prepared_audio_missing')
             metadata, audio_path, profile = self._paths(text)
-            key = load_private(self.credential_path)
-            client = self.client_factory(key)
+            selected = load_profile(self.credential_path)
+            if any(selected[name] != value for name, value in self.selection.items()):
+                raise DoubaoError('profile_changed_during_render')
+            client = self.client_factory(selected['api_key'],
+                resource_id=self.selection['resource_id'], speaker=self.voice)
             self.cache_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
             (self.cache_dir/'attempts').mkdir(mode=0o700, exist_ok=True)
             attempt = self.cache_dir/'attempts'/uuid.uuid4().hex
@@ -208,7 +213,7 @@ class DoubaoSpeechRenderer:
         return None
 
     def diagnostics(self):
-        return {'renderer': RENDERER, 'model': MODEL_NAME, 'voice': SPEAKER,
+        return {'renderer': RENDERER, 'model': self.selection['model_name'], 'voice': self.voice,
                 'sample_rate': SAMPLE_RATE, 'synthesis_count': self.renders,
                 'cache_hits': self.cache_hits, 'error_count': self.errors,
                 'last_render_ms': self.last_render_ms, 'last_audio_ms': self.last_audio_ms,

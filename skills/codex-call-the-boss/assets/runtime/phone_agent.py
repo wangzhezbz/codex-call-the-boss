@@ -6304,12 +6304,12 @@ async def doctor() -> int:
             prerequisites_ok = prerequisites_ok and library['ready']
             print('native notice library: ' + json.dumps(library, ensure_ascii=False))
         elif renderer == DOUBAO_RENDERER:
-            from doubao_tts import MODEL_NAME, SPEAKER
+            from doubao_tts import load_profile
             try:
-                load_doubao_private(STATE_DIR/'doubao-tts.json')
+                selected = load_profile(STATE_DIR/'doubao-tts.json')
                 library = doubao_speech_renderer().notice_readiness()
                 prerequisites_ok = prerequisites_ok and library['ready']
-                print(f'actual phone voice: {SPEAKER}; model: {MODEL_NAME}')
+                print(f"actual phone voice: {selected['speaker']}; model: {selected['model_name']}")
                 print('Doubao prepared library: ' + json.dumps(library, ensure_ascii=False))
                 qa_ok = _offline_whisper_command(Path('readiness-only.wav')) is not None
                 prerequisites_ok = prerequisites_ok and qa_ok

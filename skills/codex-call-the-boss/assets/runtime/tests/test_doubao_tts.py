@@ -57,6 +57,39 @@ class FakeSocket:
 
 
 class DoubaoTests(unittest.IsolatedAsyncioTestCase):
+    async def test_selected_model_and_voice_reach_the_wire(self):
+        for resource in tts.MODEL_OPTIONS:
+            socket = FakeSocket()
+            connect = AsyncMock(return_value=socket)
+            client = tts.DoubaoClient('test-key', connect=connect,
+                                     resource_id=resource, speaker='chosen_catalog_voice')
+            await client.synthesize('测试所选音色')
+            self.assertEqual(connect.call_args.kwargs['additional_headers']['X-Api-Resource-Id'], resource)
+            for msg in socket.sent:
+                if msg.event in (p.EventType.StartSession, p.EventType.TaskRequest):
+                    self.assertEqual(json.loads(msg.payload)['req_params']['speaker'], 'chosen_catalog_voice')
+            self.assertEqual(client.last_result['model'], tts.MODEL_OPTIONS[resource])
+
+    def test_interactive_choice_is_required_and_private(self):
+        path = Path(tempfile.mkdtemp(prefix='doubao-choice-'))/'credentials.json'
+        with patch('builtins.input', side_effect=['seed-icl-2.0', 'chosen_voice', 'YES']), \
+                patch.object(tts.getpass, 'getpass', return_value='test-secret'):
+            tts.configure_private(path, choose_profile=True)
+        profile = tts.load_profile(path)
+        self.assertEqual(profile['speaker'], 'chosen_voice')
+        self.assertEqual(profile['resource_id'], 'seed-icl-2.0')
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_cancelled_or_unsupported_choice_writes_nothing(self):
+        for answers in (['seed-tts-2.0', 'chosen_voice', 'NO'], ['unknown-model', 'voice']):
+            path = Path(tempfile.mkdtemp(prefix='doubao-choice-refused-'))/'credentials.json'
+            with patch('builtins.input', side_effect=answers), \
+                    patch.object(tts.getpass, 'getpass') as secret:
+                with self.assertRaises(tts.DoubaoError):
+                    tts.configure_private(path, choose_profile=True)
+                secret.assert_not_called()
+                self.assertFalse(path.exists())
+
     async def test_exact_model_and_voice_full_lifecycle(self):
         socket = FakeSocket()
         connect = AsyncMock(return_value=socket)

@@ -56,10 +56,21 @@
 
 ## 声音与费用
 
-- 识别和回答走当前 Codex 登录及其额度，这条路径不要求 OpenAI API Key。
-- 通话使用自己的手机线路，是否收费取决于套餐；不承诺无限额度或免费电话。
-- 默认使用系统语音。可选豆包配音需自行提供凭据、同意潜在费用，固定使用 **Doubao-语音合成-2.0 / `seed-tts-2.0`**，详见[配音配置](../skills/codex-call-the-boss/references/doubao.md)。
-- 分享包不包含号码、密钥、账户登录、配音缓存或通话录音。
+首次配置时，Codex 会先询问你选择**系统语音还是豆包语音**，不会直接替你决定。
+
+- **系统语音**：选择 Mac 已安装的声音，不增加配音服务商费用。
+- **豆包语音**：按下面步骤选择模型和音色，配音文本会发送给火山引擎，调用可能产生费用。
+- 识别和回答仍使用已登录的 Codex 及其账户额度，通话使用你的手机套餐，这条路径不需要 OpenAI API Key。
+
+### 选择豆包语音后
+
+1. 打开[火山引擎控制台](https://console.volcengine.com/ark/region:cn-beijing/overview)，自行注册或登录。
+2. 进入[语音模型开通页面](https://console.volcengine.com/ark/region:cn-beijing/openManagement?advancedActiveKey=model&tab=TTS)。普通配音推荐 **豆包语音合成模型 2.0**（`seed-tts-2.0`）；如果已有本人或获授权的复刻音色，可选择 **豆包声音复刻模型 2.0**（`seed-icl-2.0`）。查看费用后自行选择开通，声音复刻服务不包含在此 Skill 中。
+3. 进入[音色库](https://console.volcengine.com/speech/new/voices?projectName=default)，按所选模型筛选、试听，再复制你选中的**音色 ID**。标准 2.0 可先试听 **甜美小源 2.0、Vivi 2.0、云舟 2.0**，最终由你决定。
+4. 在 [API Key 管理页面](https://console.volcengine.com/speech/new/setting/apikeys?projectName=default)创建语音服务的 API Key。按 Codex 引导，在私有终端的隐藏输入框中填写，**不要发到聊天或仓库里**。
+5. 确认模型、音色和可能产生的费用。Codex 保存你的选择，检查合成并提供试听，确认后再启用；这一步不会拨打电话。
+
+当前接入支持上述两款 2.0 模型，其他模型需先核对兼容性再开通。音色 ID 和详细步骤见[豆包配置说明](../skills/codex-call-the-boss/references/doubao.md)。已有用户保留原来的声音，分享包不含号码、密钥、账户登录或录音。
 
 ## 当前限制
 

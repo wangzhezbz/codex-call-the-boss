@@ -44,6 +44,15 @@ Python 3.11 or newer is required. The installer first checks the bundle and inte
 
 ## 4. Configure the iPhone line privately
 
+Before configuring speech, ask: “使用系统语音，还是豆包语音？” Explain
+the additional provider cost and synthesis-text disclosure for Doubao. Wait for
+the user's answer. System speech uses their installed macOS voice inventory;
+Doubao requires the guided model, voice-ID and private API-key steps in
+[doubao.md](doubao.md). Do not silently choose system speech because it is
+the runtime's technical default. Existing configured users retain their choice.
+The optional native Realtime details below are not an automatic third choice
+or a fallback from the user's selected provider.
+
 Run the following in an interactive terminal and let the user type the receiving number there. Do not ask them to paste the number into a public document or package:
 
 ```bash
@@ -52,7 +61,7 @@ python3 scripts/call_the_boss.py configure-iphone
 
 The number is stored only in `~/.codex-phone/config.json` with mode `600`.
 
-Normal conversation defaults to the selected installed macOS voice, while recognition and answers use the current Codex login. This uses the existing account allowance, not a new API-key bill. Native Codex Realtime output is optional: list only voices the live phone v3 transport accepts and verify without dialing before switching:
+When the owner chooses system speech, conversation uses their selected installed macOS voice, while recognition and answers use the current Codex login. This uses the existing account allowance, not a new API-key bill. Native Codex Realtime output is optional: list only voices the live phone v3 transport accepts and verify without dialing before switching:
 
 ```bash
 python3 scripts/call_the_boss.py list-realtime-voices
