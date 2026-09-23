@@ -21,6 +21,9 @@ Present these steps to the user in their language, one decision at a time:
    voices. For users who already have a voice they own or are authorized to
    use, offer **Doubao voice cloning 2.0** (`seed-icl-2.0`); cloning and
    acquiring a voice are separate services, not supplied by this skill.
+   Offer a third option explicitly: **Choose another speech model yourself**.
+   Ask for its model name or ID and check adapter compatibility before
+   activation or billing. Choosing it does not automatically add support.
    Let the user choose and review console pricing before activation.
    These are the two resources documented for the current
    [bidirectional WebSocket endpoint](https://www.volcengine.com/docs/6561/2532486?lang=zh).

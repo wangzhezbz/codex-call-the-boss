@@ -53,7 +53,7 @@ the runtime's technical default. Existing configured users retain their choice.
 The optional native Realtime details below are not an automatic third choice
 or a fallback from the user's selected provider.
 
-Run the following in an interactive terminal and let the user type the receiving number there. Do not ask them to paste the number into a public document or package:
+Ask the user directly: “请把用于接收汇报电话的手机号码发给我，不能与 iPhone 拨出电话的号码相同。” They may provide it in the current private conversation. Do not echo it in summaries or logs, copy it into public documents, or put it in command arguments. Supply it through the following command's private interactive input; the user may also type it there themselves:
 
 ```bash
 python3 scripts/call_the_boss.py configure-iphone
@@ -251,6 +251,17 @@ python3 scripts/call_the_boss.py doctor
 ```
 
 Do not place a test call unless the user separately asks for one.
+
+Before that request, walk the user through the call: say “喂” after pickup,
+listen to the report, then freely ask about results, explanations or options.
+For a task to execute, teach the wording “下一步的任务是：XXXXX” with a concrete
+example and expected result. Explain that discussion alone does not request
+project changes. After a delivery receipt the caller may hang up; the next
+completion is reported by another call. An unconfirmed execution receipt still
+requires checking the original task. One call submits one action; corrections
+or cancellation after submission go through the original task. Refer to the
+Chinese walkthrough's call examples when useful, and explain in the user's
+language. Do not treat the suggested phrase as a magic authorization token.
 
 ## 7. Disable
 

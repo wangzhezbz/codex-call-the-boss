@@ -26,6 +26,21 @@ Use the calling features already on your Mac and iPhone—no extra mobile app ne
 
 Work assigned by phone returns to your original Codex task. Open that task anytime to check progress and results.
 
+## What to say on the call
+
+1. **Answer and say hello**, then listen to the short completion report.
+2. **Talk normally**: ask “What did you finish?”, “What still needs work?”, “Why did you change that?”, or “How do these two options compare?” You can also say “Repeat that” or “Explain it more simply.” Ask questions before deciding; discussion alone is not a request to change the project.
+3. **When you want work executed, say:**
+
+   > The next task is: XXXXX.
+
+   For a Chinese-language call, use: **“下一步的任务是：XXXXX。”** For example: “The next task is: check every link on the homepage, fix broken links, and report which ones changed.” State the action, scope, and expected result.
+4. **Listen for the receipt.** After confirmed delivery, you may hang up and wait for the next completion call. If execution is unconfirmed, check the original task; delivery does not mean work has started.
+
+Each call submits one execution command. Make additions, changes or cancellations after submission in the original Codex task. You can also just ask questions and hang up without assigning work.
+
+Before the first test call, Codex explains these steps and asks whether to dial.
+
 ## Get started
 
 ### 1. Prepare your devices
@@ -63,6 +78,8 @@ On first use, Codex asks you to choose **system speech or Doubao speech**. Nothi
 - Recognition and answers use your signed-in Codex account and its limits. Calls use your mobile plan; this path does not require an OpenAI API Key.
 
 ### Set up Doubao
+
+You can also choose **3. Choose another speech model yourself**. Send Codex its name or ID for a compatibility check before activation.
 
 1. Open the [Volcengine console](https://console.volcengine.com/ark/region:cn-beijing/overview) and sign in or register.
 2. Open [TTS model activation](https://console.volcengine.com/ark/region:cn-beijing/openManagement?advancedActiveKey=model&tab=TTS). For catalog voices, start with **Doubao speech synthesis 2.0** (`seed-tts-2.0`). If you already have an authorized cloned voice, choose **Doubao voice cloning 2.0** (`seed-icl-2.0`). Review prices and choose yourself; cloning is not included in this skill.
